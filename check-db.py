@@ -25,6 +25,30 @@ manager.database.activities.clear()
 manager.database.actors.clear()
 manager.database.objects.clear()
 
+def initializeGraph():
+    initial_nodes = """
+    MATCH (n)
+    WHERE NOT EXISTS (n.graph_status)
+    RETURN n, labels(n), keys(n)
+    ORDER BY n.time
+    """
+    
+    initial_edges = """
+    MATCH (a)-[e]->(b)
+    WHERE NOT EXISTS (e.graph_status)
+    RETURN e, type(e), labels(a), labels(b)
+    ORDER BY e.time
+    """
+    
+    for record in session.run(initial_nodes):
+        createObject(record[0], record[1], record[2])
+            
+    for e in session.run(initial_edges):
+        nodes = e[0].nodes
+        createEdge(nodes[0],nodes[1],e[1],e[2],e[3])
+    
+    checkForUpdates()
+
 #%% Functions
 
 create_query = """CREATE (p:Person {name:'Eve'})"""
@@ -56,15 +80,17 @@ match_nodes = """
 MATCH (n)
 WHERE n.graph_status = "%s"
 RETURN n, labels(n), keys(n)
+ORDER BY n.time
 """
 
 match_edges = """
 MATCH (a)-[e]->(b)
 WHERE e.graph_status = "%s"
-RETURN e, type(e)
+RETURN e, type(e), labels(a), labels(b)
+ORDER BY e.time
 """
 
-def checkForUpdates():
+def checkForUpdates(originalQuery=None):
     created_nodes = session.run(match_nodes % "new")
     created_edges = session.run(match_edges % "new")
     
@@ -86,7 +112,7 @@ def checkForUpdates():
         for e in created_edges:
             nodes = e[0].nodes
             print(e)
-            createEdge(nodes[0],nodes[1],e[1])
+            createEdge(nodes[0],nodes[1],e[1],e[2],e[3])
     
     if updated_edges.peek():
         print('Updated edges')
@@ -100,16 +126,21 @@ def checkForUpdates():
             print(record)
             updateObject(record[0], record[1], record[2])
     
-    if deleted_edges.peek():
-        print('Deleted edges')
-        for e in deleted_edges:
-            nodes = e[0].nodes
-            removeEdge(nodes[0],nodes[1],e[1])
+    if deleted_edges.peek() or deleted_nodes.peek():
+        session.run(originalQuery)
         
-    if deleted_nodes.peek():
-        print('Deleted nodes')
-        for record in deleted_nodes:
-            deleteObject(record[0], record[1])
+        if deleted_edges.peek():
+            print('Deleted edges')
+        
+            for e in deleted_edges:
+                nodes = e[0].nodes
+                removeEdge(nodes[0],nodes[1],e[1],e[2],e[3])
+        
+        if deleted_nodes.peek():
+            print('Deleted nodes')
+        
+            for record in deleted_nodes:
+                deleteObject(record[0], record[1])
             
     if detached_nodes.peek():
         print('Deleted nodes')
@@ -120,6 +151,8 @@ def checkForUpdates():
         
         for d in to_detach_nodes:
             removeEdge(d[0],record[0],d[1])
+    
+    #finalizeGraph()
         
 def createObject(node, labels, keys):
     node_id = node.id
@@ -131,7 +164,7 @@ def createObject(node, labels, keys):
     
     print(node_id, labels, keys, property_values)
     
-    objDict = {"id" : str(node_id)}
+    objDict = {"object_id" : str(node_id)}
     
     for i in range(len(keys)):
         objDict[keys[i]] = property_values[i]
@@ -141,8 +174,23 @@ def createObject(node, labels, keys):
         p = manager.Person(**objDict)
         db.actors.insert_one(p.to_dict())
     else:
-        o = manager.Note(**objDict)
-        db.objects.insert_one(o.to_dict())
+        note = manager.Note(**objDict)
+        
+        create = manager.Create(**{
+            'object': note.to_dict(),
+            }
+        )
+        
+        message = manager.Create(
+        **{
+            'object_id': str(node_id),
+            'activity': create.to_dict(),
+            'box': 'outbox',
+            'type': ['Create'],
+            })
+        
+        #db.objects.insert_one(o.to_dict())
+        db.activities.insert_one(message.to_dict())
         
 def updateObject(node, labels, keys):
     node_id = node.id
@@ -160,43 +208,77 @@ def updateObject(node, labels, keys):
         objDict[keys[i]] = property_values[i]
     
     if "Person" in labels:
-        updatedNode = db.actors.find_one_and_update({"id": str(node_id)}, {"$set": objDict})
+        updatedNode = db.actors.find_one_and_update({"object_id": str(node_id)}, {"$set": objDict})
     else:
-        updatedNode = db.objects.find_one_and_update({"id": str(node_id)}, {"$set": objDict})
+        updatedNode = db.activities.find_one_and_update({"object_id": str(node_id)}, {"$set": objDict})
     print(updatedNode)
     
 def deleteObject(node, labels):
     node_id = node.id
     
     if "Person" in labels:
-        db.actors.remove({"id": str(node_id)})
+        db.actors.remove({"object_id": str(node_id)})
     else:
-        db.objects.remove({"id": str(node_id)})
+        db.activities.remove({"object_id": str(node_id)})
         
-def createEdge(ingoingNode, outgoingNode, name):
+def createEdge(ingoingNode, outgoingNode, name, labelsA, labelsB):
     id1 = ingoingNode.id
     id2 = outgoingNode.id
     
     print(id1,id2, name)
-    node2 = db.objects.find_one({"id": str(id2)})
+    if "Person" in labelsB:
+        node2 = db.actors.find_one({"object_id": str(id2)})
+    else:
+        node2 = db.activities.find_one({"object_id": str(id2)})
+        
     print(node2)
-    node1 = db.objects.find_one_and_update({"id": str(id1)}, {"$set": {name: node2}})
+    
+    if "Person" in labelsA:
+        node1 = db.actors.find_one_and_update({"object_id": str(id1)}, {"$set": {name: node2}})
+    else:
+        node1 = db.activities.find_one_and_update({"object_id": str(id1)}, {"$set": {name: node2}})
+    
     print(node1)
 
 def updateEdge():
     #TODO ?
     print('todo updateEdge')
 
-def removeEdge(ingoingNode, outgoingNode, name):
+def removeEdge(ingoingNode, outgoingNode, name, labelsA, labelsB):
     id1 = ingoingNode.id
     id2 = outgoingNode.id
     
     print(id1,id2, name)
-    node1 = db.objects.find_one({"id": str(id1)}).__delitem__(name)
-    db.objects.remove({"id": str(id1)})
-    db.actors.insert_one(node1)
+    if "Person" in labelsA:
+        node1 = db.actors.find_one({"object_id": str(id1)}).__delitem__(name)
+        db.actors.remove({"object_id": str(id1)})
+        db.actors.insert_one(node1)
+    else:
+        node1 = db.activities.find_one({"object_id": str(id1)}).__delitem__(name)
+        db.activities.remove({"object_id": str(id1)})
+        db.activities.insert_one(node1)
+    
+def finalizeGraph():
+    
+    updateNodesQuery = """MATCH (n)
+    WHERE n.graph_status = 'new' OR n.graph_status = 'updated'
+    REMOVE n.graph_status, n.time
+    RETURN n"""
+    
+    updateEdgesQuery = """MATCH (n)-[e]->(m)
+    WHERE e.graph_status = 'new' OR e.graph_status = 'updated'
+    REMOVE e.graph_status, e.time
+    RETURN e"""
+    
+    removeNodesQuery = """"""
+    
+    session.run(finalizeNodesQuery)
+    session.run(finalizeEdgesQuery)
 
-checkForUpdates()
+#%%
+
+initializeGraph()
+#checkForUpdates()
 
 #%% Close session
 #session.close()
