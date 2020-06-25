@@ -8,6 +8,8 @@ import re
 #from pypeg2 import parse
 from time import time
 
+from check_db import checkForUpdates
+
 #%%
 
 driver = GraphDatabase.driver("bolt://localhost", auth=basic_auth("neo4j", "hunter2"))

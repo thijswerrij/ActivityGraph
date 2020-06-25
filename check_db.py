@@ -178,6 +178,7 @@ def createObject(node, labels, keys):
         
         create = manager.Create(**{
             'object': note.to_dict(),
+            'published': '$NOW',
             }
         )
         
@@ -187,6 +188,7 @@ def createObject(node, labels, keys):
             'activity': create.to_dict(),
             'box': 'outbox',
             'type': ['Create'],
+            'meta': {'undo': False, 'deleted': False},
             })
         
         #db.objects.insert_one(o.to_dict())
@@ -278,7 +280,6 @@ def finalizeGraph():
 #%%
 
 initializeGraph()
-#checkForUpdates()
 
 #%% Close session
 #session.close()
