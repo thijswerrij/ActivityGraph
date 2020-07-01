@@ -71,7 +71,7 @@ RETURN e, type(e), labels(a), labels(b)
 ORDER BY e.time
 """
 
-def checkForUpdates(originalQuery=None):
+def checkForUpdates(originalQuery=None, testing=True):
     created_nodes = session.run(match_nodes % "new")
     created_edges = session.run(match_edges % "new")
     
@@ -133,7 +133,8 @@ def checkForUpdates(originalQuery=None):
         for d in to_detach_nodes:
             removeEdge(d[0],record[0],d[1])
     
-    #finalizeGraph()
+    if not testing:
+        finalizeGraph()
         
 def createObject(node, labels, keys):
     node_id = node.id
@@ -253,10 +254,21 @@ def finalizeGraph():
     REMOVE e.graph_status, e.time
     RETURN e"""
     
-    removeNodesQuery = """"""
+    session.run(updateNodesQuery)
+    session.run(updateEdgesQuery)
     
-    session.run(finalizeNodesQuery)
-    session.run(finalizeEdgesQuery)
+    detachNodesQuery = """MATCH (n)
+    WHERE n.graph_status = 'detach'
+    DETACH DELETE n"""
+    
+    detachEdgesQuery = """MATCH (n)-[e]->(m)
+    WHERE e.graph_status = 'detach'
+    DETACH DELETE e"""
+    
+    session.run(detachEdgesQuery)
+    session.run(detachNodesQuery)
+    
+    print('bla')
 
 #%%
 

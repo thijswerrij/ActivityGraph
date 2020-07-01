@@ -28,7 +28,7 @@ def checkQuery (input_query, testing = True):
         input_query = splitQuery(input_query, "DELETE")
     
     if not testing:
-        sendQuery(input_query)
+        sendQuery(input_query, testing)
     else:
         print(input_query)
     
@@ -64,11 +64,11 @@ def splitQuery (input_query, query_type):
     if (query_type == "CREATE"):
         properties = "graph_status:'new'"
     elif (query_type == "SET"):
-        properties = "graph_status:'updated'"
+        properties = "graph_status = 'updated'"
     elif (query_type == "DELETE"):
-        properties = "graph_status:'delete'"
+        properties = "graph_status = 'delete'"
     elif (query_type == "DETACH"):
-        properties = "graph_status:'detach'"
+        properties = "graph_status = 'detach'"
     else:
         raise Exception('Unexpected query type')
         
@@ -122,7 +122,7 @@ def matchQuery(input_query):
         return re.findall("""\(([^\) :{]*)[^\)]*\)""", match_query[0])
     return []
 
-def sendQuery(input_query, query_type=""):
+def sendQuery(input_query, testing, query_type=""):
     print(input_query)
     results = session.run(input_query)
     if (query_type != ""):
@@ -131,4 +131,8 @@ def sendQuery(input_query, query_type=""):
         print("Query sent!")
     print(results)
     print()
-    checkForUpdates()
+    checkForUpdates(testing=testing)
+
+def resetGraph():
+    # WARNING, RESETS GRAPH
+    session.run("""MATCH (n) DETACH DELETE n""")
