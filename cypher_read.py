@@ -5,7 +5,6 @@
 
 from neo4j import GraphDatabase, basic_auth
 import re
-#from pypeg2 import parse
 from time import time
 
 from check_db import checkForUpdates
@@ -17,16 +16,7 @@ session = driver.session()
 
 #%%
 
-example_query = """CREATE (a:Person {name:'Test1'}), (b:Object {name:'Test2'}), (c:Object)"""
-example_query2 = """CREATE (a)-[r:RELTYPE { name: a.name + '<->' + b.name }]->(b), c"""
-example_query3 = """MATCH (a:Person),(b:Person)
-WHERE a.name = 'A' AND b.name = 'B'
-CREATE (a)-[r:RELTYPE { name: a.name + '<->' + b.name }]->(b)
-RETURN type(r), r.name"""
-
-#%%
-
-def checkQuery (input_query):
+def checkQuery (input_query, testing = True):
     
     if (re.search("CREATE", input_query)):
         input_query = splitQuery(input_query, "CREATE")
@@ -37,10 +27,11 @@ def checkQuery (input_query):
     elif (re.search("DELETE", input_query)):
         input_query = splitQuery(input_query, "DELETE")
     
-    print(input_query)
-    #sendQuery(input_query)
+    if not testing:
+        sendQuery(input_query)
+    else:
+        print(input_query)
     
-
 def splitQuery (input_query, query_type):
     regex = "\(([^({]+)(?:({[^(]*)})?\)(?:-\[([^({]+)(?:({[^(]*)})?\]->)?" # TODO: Explanation
     rr_list = []
@@ -140,22 +131,4 @@ def sendQuery(input_query, query_type=""):
         print("Query sent!")
     print(results)
     print()
-
-#%%
-checkQuery(example_query3)
-
-print()
-print()
-
-update_query = """MATCH (n)
-WHERE id(n)=203
-SET n.name = 'Test123'
-RETURN n"""
-
-checkQuery(update_query)
-
-delete_query = """MATCH (n)
-WHERE id(n)=203
-DETACH DELETE n"""
-
-checkQuery(delete_query)
+    checkForUpdates()

@@ -14,7 +14,13 @@ from activitypub.database import *
 driver = GraphDatabase.driver("bolt://localhost", auth=basic_auth("neo4j", "hunter2"))
 session = driver.session()
 
+## Pick one:
+#database = RedisDatabase("redis://localhost:6379/0")
 db = MongoDatabase("mongodb://localhost:27017", "dsblank_localhost")
+#database = ListDatabase()
+#database = SQLDatabase("sqlite://")
+#datavbase = SQLDatabase("sqlite:///sqlite.db")
+
 manager = Manager(database=db)
 
 if manager.database.table_exists("activities"):
@@ -48,31 +54,6 @@ def initializeGraph():
         createEdge(nodes[0],nodes[1],e[1],e[2],e[3])
     
     checkForUpdates()
-
-#%% Functions
-
-create_query = """CREATE (p:Person {name:'Eve'})"""
-delete_query = """MATCH (p:Person {name: 'Eve'}) DELETE p"""
-
-#%% Test matches
-
-match_all = """
-MATCH (n)
-RETURN n, n.time_created
-"""
-
-match_connections = """
-MATCH (n1)-[r]->(n2) RETURN r, n1, n2 LIMIT 25
-"""
-
-match_person = """
-MATCH (user:Person)
-RETURN user.name AS name
-"""
-
-results = session.run(match_all)
-for record in results:
-    print(record)
     
 #%%
 
