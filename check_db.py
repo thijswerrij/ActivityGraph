@@ -3,16 +3,11 @@
 @author: Thijs Werrij
 """
 
-from neo4j import GraphDatabase, basic_auth
-from time import time
-
 from activitypub.manager import Manager
-from activitypub.database import *
+from activitypub.database import MongoDatabase
+#from activitypub.database import *
 
 #%%
-
-driver = GraphDatabase.driver("bolt://localhost", auth=basic_auth("neo4j", "hunter2"))
-session = driver.session()
 
 ## Pick one:
 #database = RedisDatabase("redis://localhost:6379/0")
@@ -23,15 +18,7 @@ db = MongoDatabase("mongodb://localhost:27017", "dsblank_localhost")
 
 manager = Manager(database=db)
 
-if manager.database.table_exists("activities"):
-    manager.database.activities.clear()
-else:
-    manager.database.build_table("activities")
-manager.database.activities.clear()
-manager.database.actors.clear()
-manager.database.objects.clear()
-
-def initializeGraph():
+def initializeGraph(session):
     initial_nodes = """
     MATCH (n)
     WHERE NOT EXISTS (n.graph_status)
@@ -71,7 +58,7 @@ RETURN e, type(e), labels(a), labels(b)
 ORDER BY e.time
 """
 
-def checkForUpdates(originalQuery=None, testing=True):
+def checkForUpdates(session, originalQuery=None, testing=True):
     created_nodes = session.run(match_nodes % "new")
     created_edges = session.run(match_edges % "new")
     
@@ -132,9 +119,6 @@ def checkForUpdates(originalQuery=None, testing=True):
         
         for d in to_detach_nodes:
             removeEdge(d[0],record[0],d[1])
-    
-    if not testing:
-        finalizeGraph()
         
 def createObject(node, labels, keys):
     node_id = node.id
@@ -242,37 +226,10 @@ def removeEdge(ingoingNode, outgoingNode, name, labelsA, labelsB):
         db.activities.remove({"object_id": str(id1)})
         db.activities.insert_one(node1)
     
-def finalizeGraph():
-    
-    updateNodesQuery = """MATCH (n)
-    WHERE n.graph_status = 'new' OR n.graph_status = 'updated'
-    REMOVE n.graph_status, n.time
-    RETURN n"""
-    
-    updateEdgesQuery = """MATCH (n)-[e]->(m)
-    WHERE e.graph_status = 'new' OR e.graph_status = 'updated'
-    REMOVE e.graph_status, e.time
-    RETURN e"""
-    
-    session.run(updateNodesQuery)
-    session.run(updateEdgesQuery)
-    
-    detachNodesQuery = """MATCH (n)
-    WHERE n.graph_status = 'detach'
-    DETACH DELETE n"""
-    
-    detachEdgesQuery = """MATCH (n)-[e]->(m)
-    WHERE e.graph_status = 'detach'
-    DETACH DELETE e"""
-    
-    session.run(detachEdgesQuery)
-    session.run(detachNodesQuery)
-    
-    print('bla')
-
-#%%
-
-initializeGraph()
+def resetDB():
+    # WARNING, RESETS DB
+    manager.database.actors.clear()
+    manager.database.activities.clear()
 
 #%% Close session
 #session.close()

@@ -12,7 +12,10 @@ from check_db import checkForUpdates
 #%%
 
 driver = GraphDatabase.driver("bolt://localhost", auth=basic_auth("neo4j", "hunter2"))
-session = driver.session()
+try:
+    session
+except NameError:
+    session = driver.session()
 
 #%%
 
@@ -122,16 +125,53 @@ def matchQuery(input_query):
         return re.findall("""\(([^\) :{]*)[^\)]*\)""", match_query[0])
     return []
 
-def sendQuery(input_query, testing, query_type=""):
+def sendQuery(input_query, testing, query_type="", show_output=False):
     print(input_query)
     results = session.run(input_query)
+    
     if (query_type != ""):
         print(str(query_type) + " query sent!")
     else:
         print("Query sent!")
-    print(results)
+    
+    if (show_output):
+        print(results)
     print()
-    checkForUpdates(testing=testing)
+    
+    checkForUpdates(session)
+    
+    if not testing:
+        finalizeGraph()
+        
+    
+def sendSimpleQuery(input_query):
+    return session.run(input_query)
+    
+def finalizeGraph():
+    
+    updateNodesQuery = """MATCH (n)
+    WHERE n.graph_status = 'new' OR n.graph_status = 'updated'
+    REMOVE n.graph_status, n.time
+    RETURN n"""
+    
+    updateEdgesQuery = """MATCH (n)-[e]->(m)
+    WHERE e.graph_status = 'new' OR e.graph_status = 'updated'
+    REMOVE e.graph_status, e.time
+    RETURN e"""
+    
+    session.run(updateNodesQuery)
+    session.run(updateEdgesQuery)
+    
+    detachNodesQuery = """MATCH (n)
+    WHERE n.graph_status = 'detach'
+    DETACH DELETE n"""
+    
+    detachEdgesQuery = """MATCH (n)-[e]->(m)
+    WHERE e.graph_status = 'detach'
+    DETACH DELETE e"""
+    
+    session.run(detachEdgesQuery)
+    session.run(detachNodesQuery)
 
 def resetGraph():
     # WARNING, RESETS GRAPH
