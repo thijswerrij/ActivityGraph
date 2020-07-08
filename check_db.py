@@ -10,13 +10,15 @@ from activitypub.database import MongoDatabase
 #%%
 
 ## Pick one:
-#database = RedisDatabase("redis://localhost:6379/0")
+#db = RedisDatabase("redis://localhost:6379/0")
 db = MongoDatabase("mongodb://localhost:27017", "dsblank_localhost")
-#database = ListDatabase()
-#database = SQLDatabase("sqlite://")
-#datavbase = SQLDatabase("sqlite:///sqlite.db")
+#db = ListDatabase()
+#db = SQLDatabase("sqlite://")
+#db = SQLDatabase("sqlite:///sqlite.db")
 
 manager = Manager(database=db)
+
+#%%
 
 def initializeGraph(session):
     initial_nodes = """
