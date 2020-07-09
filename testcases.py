@@ -13,18 +13,18 @@ resetDB()
 
 create_abc = """CREATE (a:Person {name:'Alice'})-[r1:friends]->(b:Person {name:'Bob'})-[r2:friends]->(c:Person {name:'Eve'})"""
 
-checkQuery(create_abc, True)
+checkQuery(create_abc, testing=False)
 
 update_bob = """MATCH (n)
 WHERE n.name = 'Bob'
 SET n.age = '25'
 RETURN n"""
 
-checkQuery(update_bob, True)
+checkQuery(update_bob, testing=False)
 
 delete_alice = """MATCH (n)-[e]->(m)
 WHERE n.name = 'Alice'
 DELETE e, n
 RETURN n"""
 
-checkQuery(delete_alice, True)
+checkQuery(delete_alice, testing=False)

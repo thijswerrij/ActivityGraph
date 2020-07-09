@@ -81,7 +81,6 @@ def checkForUpdates(session, originalQuery=None, testing=True):
         print('New edges')
         for e in created_edges:
             nodes = e[0].nodes
-            print(e)
             createEdge(nodes[0],nodes[1],e[1],e[2],e[3])
     
     if updated_edges.peek():
@@ -93,7 +92,6 @@ def checkForUpdates(session, originalQuery=None, testing=True):
     if updated_nodes.peek():
         print('Updated nodes')
         for record in updated_nodes:
-            print(record)
             updateObject(record[0], record[1], record[2])
     
     if deleted_edges.peek() or deleted_nodes.peek():
@@ -130,14 +128,11 @@ def createObject(node, labels, keys):
     for k in keys:
         property_values.append(node[k])
     
-    print(node_id, labels, keys, property_values)
-    
     objDict = {"object_id" : str(node_id)}
     
     for i in range(len(keys)):
         objDict[keys[i]] = property_values[i]
     
-    #print(objDict)
     if "Person" in labels:
         p = manager.Person(**objDict)
         db.actors.insert_one(p.to_dict())
@@ -159,7 +154,6 @@ def createObject(node, labels, keys):
             'meta': {'undo': False, 'deleted': False},
             })
         
-        #db.objects.insert_one(o.to_dict())
         db.activities.insert_one(message.to_dict())
         
 def updateObject(node, labels, keys):
@@ -170,8 +164,6 @@ def updateObject(node, labels, keys):
     for k in keys:
         property_values.append(node[k])
     
-    print(node_id, labels, keys, property_values)
-    
     objDict = {}
     
     for i in range(len(keys)):
@@ -181,7 +173,6 @@ def updateObject(node, labels, keys):
         updatedNode = db.actors.find_one_and_update({"object_id": str(node_id)}, {"$set": objDict})
     else:
         updatedNode = db.activities.find_one_and_update({"object_id": str(node_id)}, {"$set": objDict})
-    print(updatedNode)
     
 def deleteObject(node, labels):
     node_id = node.id
@@ -195,20 +186,15 @@ def createEdge(ingoingNode, outgoingNode, name, labelsA, labelsB):
     id1 = ingoingNode.id
     id2 = outgoingNode.id
     
-    print(id1,id2, name)
     if "Person" in labelsB:
         node2 = db.actors.find_one({"object_id": str(id2)})
     else:
         node2 = db.activities.find_one({"object_id": str(id2)})
-        
-    print(node2)
     
     if "Person" in labelsA:
         node1 = db.actors.find_one_and_update({"object_id": str(id1)}, {"$set": {name: node2}})
     else:
         node1 = db.activities.find_one_and_update({"object_id": str(id1)}, {"$set": {name: node2}})
-    
-    print(node1)
 
 def updateEdge():
     #TODO ?
@@ -218,13 +204,14 @@ def removeEdge(ingoingNode, outgoingNode, name, labelsA, labelsB):
     id1 = ingoingNode.id
     id2 = outgoingNode.id
     
-    print(id1,id2, name)
     if "Person" in labelsA:
-        node1 = db.actors.find_one({"object_id": str(id1)}).__delitem__(name)
+        node1 = db.actors.find_one({"object_id": str(id1)})
+        del node1[name]
         db.actors.remove({"object_id": str(id1)})
         db.actors.insert_one(node1)
     else:
-        node1 = db.activities.find_one({"object_id": str(id1)}).__delitem__(name)
+        node1 = db.activities.find_one({"object_id": str(id1)})
+        del node1[name]
         db.activities.remove({"object_id": str(id1)})
         db.activities.insert_one(node1)
     
