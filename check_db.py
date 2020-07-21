@@ -132,14 +132,22 @@ def createObject(node, labels, keys):
     
     for i in range(len(keys)):
         objDict[keys[i]] = property_values[i]
+        
+    del objDict['graph_status']
     
     if "Person" in labels:
         p = manager.Person(**objDict)
         db.actors.insert_one(p.to_dict())
     else:
+        objDict.update(**{'attributedTo': '$DOMAIN',
+            'published': '$NOW',
+            'temp_uuid': "$UUID",
+            })
+        
         note = manager.Note(**objDict)
         
         create = manager.Create(**{
+            'actor': '$DOMAIN',
             'object': note.to_dict(),
             'published': '$NOW',
             }
@@ -168,6 +176,8 @@ def updateObject(node, labels, keys):
     
     for i in range(len(keys)):
         objDict[keys[i]] = property_values[i]
+        
+    del objDict['graph_status']
     
     if "Person" in labels:
         updatedNode = db.actors.find_one_and_update({"object_id": str(node_id)}, {"$set": objDict})
@@ -192,9 +202,9 @@ def createEdge(ingoingNode, outgoingNode, name, labelsA, labelsB):
         node2 = db.activities.find_one({"object_id": str(id2)})
     
     if "Person" in labelsA:
-        node1 = db.actors.find_one_and_update({"object_id": str(id1)}, {"$set": {name: node2}})
+        setOutgoingEdge(db.actors, id1, name, node2)
     else:
-        node1 = db.activities.find_one_and_update({"object_id": str(id1)}, {"$set": {name: node2}})
+        setOutgoingEdge(db.activities, id1, name, node2)
 
 def updateEdge():
     #TODO ?
@@ -205,15 +215,55 @@ def removeEdge(ingoingNode, outgoingNode, name, labelsA, labelsB):
     id2 = outgoingNode.id
     
     if "Person" in labelsA:
-        node1 = db.actors.find_one({"object_id": str(id1)})
-        del node1[name]
-        db.actors.remove({"object_id": str(id1)})
-        db.actors.insert_one(node1)
+        removeOutgoingEdge(db.actors, id1, name, id2)
     else:
-        node1 = db.activities.find_one({"object_id": str(id1)})
-        del node1[name]
-        db.activities.remove({"object_id": str(id1)})
-        db.activities.insert_one(node1)
+        removeOutgoingEdge(db.activities, id1, name, id2)
+        
+def setOutgoingEdge(table, idNr, edgeName, outgoingNode):
+    # Helper function created so that instead of overwriting edges with the same name,
+    # a list of edges for that name is added as a property
+    # So for example (Bob)<-(Alice)->(Eve) should result in Alice having
+    # property 'friends': [Bob,Eve]
+    
+    node = table.find_one({"object_id": str(idNr)})
+    if edgeName in node:
+        value = node[edgeName]
+        print('value', type(value), value)
+        if type(value) is list:
+            value.append(outgoingNode)
+            nodeResult = table.find_one_and_update({"object_id": str(idNr)}, {"$set": {edgeName: value}})
+        else:
+            raise Exception('Expected list, got ' + type(value))
+    else:
+        nodeResult = table.find_one_and_update({"object_id": str(idNr)}, {"$set": {edgeName: [outgoingNode]}})
+        
+    return nodeResult
+
+def removeOutgoingEdge(table, idNr, edgeName, outgoingId):
+    toDelete = None
+    
+    node = table.find_one({"object_id": str(idNr)})
+    if edgeName in node:
+        value = node[edgeName]
+        if type(value) is list:
+            for n in value:
+                if n['object_id'] is outgoingId:
+                    toDelete = n
+            
+            # check if edge is found
+            if toDelete:
+                value.remove(toDelete)
+            
+            # check if list is empty
+            if len(value) is 0:
+                del node[edgeName]
+                table.remove({"object_id": str(idNr)})
+                table.insert_one(node)
+            else:
+                table.find_one_and_update({"object_id": str(idNr)}, {"$set": {edgeName: value}})
+        else:
+            raise Exception('Expected list, got ' + type(value))
+        
     
 def resetDB():
     # WARNING, RESETS DB
