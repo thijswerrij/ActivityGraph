@@ -5,13 +5,14 @@
 
 from neo4j import GraphDatabase, basic_auth
 import re
-from time import time
+from time import time, sleep
 
 from check_db import checkForUpdates
 
 #%%
 
 driver = GraphDatabase.driver("bolt://localhost", auth=basic_auth("neo4j", "hunter2"))
+
 try:
     session
 except NameError:
@@ -45,8 +46,10 @@ def splitQuery (input_query, query_type):
     # statements and separate them from the rest of the query
     create_regex = re.compile("(CREATE \(.+\)(?:, \(.+\))*)")
     set_regex    = re.compile("(SET .+ = \S+)")
-    delete_regex = re.compile("((?:DETACH )?DELETE .+, [^,\s]+)")
+    delete_regex = re.compile("((?:DETACH )?DELETE \w+(?:, [^,\s]+)*)")
     
+    
+    print(query_type)
     if (query_type == "CREATE"):
         properties = "graph_status:'new'"
         type_regex = create_regex
@@ -140,7 +143,7 @@ def splitQuery (input_query, query_type):
 
     elif (query_type == "DELETE" or query_type == "DETACH"):
         # This regex captures all nodes mentioned after DELETE and adds them to rr_list
-        regex = "(?:DELETE )?(\w+)"
+        regex = "(?:(?:DETACH )?DELETE )?(\w+)"
         
         for r in re.findall(regex, mid_query):
             rr_list.append(r + "." + properties)
@@ -184,6 +187,8 @@ def sendQuery(input_query, testing, query_type=None, originalQuery=None, show_ou
     
     if not testing:
         finalizeGraph()
+        
+    #session.close()
         
     
 def sendSimpleQuery(input_query):

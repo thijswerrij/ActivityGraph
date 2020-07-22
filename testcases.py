@@ -29,13 +29,11 @@ RETURN n"""
 
 checkQuery(update_bob, testing=False)
 
-#delete_eve = """MATCH (n)-[e]->(m)
-#WHERE n.name = 'Eve'
-#DELETE e, n"""
-
-delete_eve = """MATCH (n)
+delete_eve = """MATCH (m)-[e]->(n)
 WHERE n.name = 'Eve'
-DETACH DELETE n"""
+DELETE e, n"""
+
+delete_eve = """MATCH (n) WHERE n.name = 'Eve' DETACH DELETE n"""
 
 checkQuery(delete_eve, testing=False)
 

@@ -111,14 +111,20 @@ def checkForUpdates(session, originalQuery=None, testing=True):
                 deleteObject(record[0], record[1])
             
     if detached_nodes.peek():
-        print('Deleted nodes')
-        for record in deleted_nodes:
+        print('Detached nodes')
+        
+        for record in detached_nodes:
             deleteObject(record[0], record[1])
             
-        to_detach_nodes = session.run("MATCH (n)-[e]->(d) WHERE id(d)= " + record[0].id + " RETURN n, type(e)")
+        query_detached_edges = """MATCH (a)-[e]->(b)
+        WHERE b.graph_status = "detach"
+        RETURN e, type(e), labels(a), labels(b)"""
         
-        for d in to_detach_nodes:
-            removeEdge(d[0],record[0],d[1])
+        to_detach_edges = session.run(query_detached_edges)
+        
+        for d in to_detach_edges:
+            nodes = d[0].nodes
+            removeEdge(nodes[0],nodes[1],d[1],d[2],d[3])
         
 def createObject(node, labels, keys):
     node_id = node.id
@@ -236,7 +242,7 @@ def setOutgoingEdge(table, idNr, edgeName, outgoingNode):
             raise Exception('Expected list, got ' + type(value))
     else:
         nodeResult = table.find_one_and_update({"object_id": str(idNr)}, {"$set": {edgeName: [outgoingNode]}})
-        
+    
     return nodeResult
 
 def removeOutgoingEdge(table, idNr, edgeName, outgoingId):
@@ -247,7 +253,7 @@ def removeOutgoingEdge(table, idNr, edgeName, outgoingId):
         value = node[edgeName]
         if type(value) is list:
             for n in value:
-                if n['object_id'] is outgoingId:
+                if n['object_id'] == str(outgoingId):
                     toDelete = n
             
             # check if edge is found
