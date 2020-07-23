@@ -48,8 +48,6 @@ def splitQuery (input_query, query_type):
     set_regex    = re.compile("(SET .+ = \S+)")
     delete_regex = re.compile("((?:DETACH )?DELETE \w+(?:, [^,\s]+)*)")
     
-    
-    print(query_type)
     if (query_type == "CREATE"):
         properties = "graph_status:'new'"
         type_regex = create_regex

@@ -29,14 +29,6 @@ RETURN n"""
 
 checkQuery(update_bob, testing=False)
 
-delete_eve = """MATCH (m)-[e]->(n)
-WHERE n.name = 'Eve'
-DELETE e, n"""
-
-delete_eve = """MATCH (n) WHERE n.name = 'Eve' DETACH DELETE n"""
-
-checkQuery(delete_eve, testing=False)
-
 create_birthday = """MATCH (b)
 WHERE b.name = "Bob"
 CREATE (e:Event {name:"Bob's birthday party", date:"01-01-2021", location:"Nijmegen", description:"More info soon to follow."})-[r:organizer]->(b)
@@ -45,7 +37,17 @@ CREATE (e:Event {name:"Bob's birthday party", date:"01-01-2021", location:"Nijme
 checkQuery(create_birthday, testing=False)
 
 create_attending = """MATCH (a), (e)
-WHERE e.name = "Bob's birthday party" AND (a.name = "Bob" OR a.name = "Alice")
+WHERE e.name = "Bob's birthday party" AND (a.name = "Alice" OR a.name = "Bob" OR a.name = "Eve")
 CREATE (e)-[r:attending]->(a)"""
 
 checkQuery(create_attending, testing=False)
+
+#%%
+
+delete_eve = """MATCH (m)-[e]->(n)
+WHERE n.name = 'Eve'
+DELETE e, n"""
+
+delete_eve = """MATCH (n) WHERE n.name = 'Eve' DETACH DELETE n"""
+
+checkQuery(delete_eve, testing=False)

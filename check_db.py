@@ -232,23 +232,37 @@ def setOutgoingEdge(table, idNr, edgeName, outgoingNode):
     # property 'friends': [Bob,Eve]
     
     node = table.find_one({"object_id": str(idNr)})
+    
+    nested = ""
+    if table.name == 'activities':
+        # if the object is an activity, the edge has to be added to the nested object
+        nested = "activity.object."
+        node = node["activity"]["object"]
+    
     if edgeName in node:
         value = node[edgeName]
         print('value', type(value), value)
         if type(value) is list:
             value.append(outgoingNode)
-            nodeResult = table.find_one_and_update({"object_id": str(idNr)}, {"$set": {edgeName: value}})
+            
+            nodeResult = table.find_one_and_update({"object_id": str(idNr)}, {"$set": {nested + edgeName: value}})
         else:
             raise Exception('Expected list, got ' + type(value))
     else:
-        nodeResult = table.find_one_and_update({"object_id": str(idNr)}, {"$set": {edgeName: [outgoingNode]}})
-    
+        nodeResult = table.find_one_and_update({"object_id": str(idNr)}, {"$set": {nested + edgeName: [outgoingNode]}})
     return nodeResult
 
 def removeOutgoingEdge(table, idNr, edgeName, outgoingId):
-    toDelete = None
     
     node = table.find_one({"object_id": str(idNr)})
+    
+    toDelete = None
+    nested = ""
+    if table.name == 'activities':
+        # if the object is an activity, the edge has to be removed from the nested object
+        nested = "activity.object."
+        node = node["activity"]["object"]
+    
     if edgeName in node:
         value = node[edgeName]
         if type(value) is list:
@@ -263,10 +277,13 @@ def removeOutgoingEdge(table, idNr, edgeName, outgoingId):
             # check if list is empty
             if len(value) is 0:
                 del node[edgeName]
-                table.remove({"object_id": str(idNr)})
-                table.insert_one(node)
+                if table.name == 'activities':
+                    table.find_one_and_update({"object_id": str(idNr)}, {"$set": {"activity.object": node}})
+                else:
+                    table.remove({"object_id": str(idNr)})
+                    table.insert_one(node)
             else:
-                table.find_one_and_update({"object_id": str(idNr)}, {"$set": {edgeName: value}})
+                table.find_one_and_update({"object_id": str(idNr)}, {"$set": {nested + edgeName: value}})
         else:
             raise Exception('Expected list, got ' + type(value))
         
