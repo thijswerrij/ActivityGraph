@@ -142,6 +142,8 @@ def createObject(node, labels, keys):
     del objDict['graph_status']
     
     if "Person" in labels:
+        if "name" in objDict and not "id" in objDict:
+            objDict["id"] = objDict["name"].lower()
         p = manager.Person(**objDict)
         db.actors.insert_one(p.to_dict())
     else:
