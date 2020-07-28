@@ -221,3 +221,10 @@ def finalizeGraph():
 def resetGraph():
     # WARNING, RESETS GRAPH
     session.run("""MATCH (n) DETACH DELETE n""")
+    
+def sendQueries(qList, testing=False):
+    # for sending multiple queries at once
+    
+    if isinstance(qList,list):
+        for q in qList:
+            checkQuery(q, testing = testing)

@@ -4,7 +4,7 @@
 """
 
 from check_db import resetDB
-from cypher_read import checkQuery, resetGraph
+from cypher_read import checkQuery, resetGraph, sendQueries
 
 #%%
 
@@ -41,6 +41,16 @@ WHERE e.name = "Bob's birthday party" AND (a.name = "Alice" OR a.name = "Bob" OR
 CREATE (e)-[r:attending]->(a)"""
 
 checkQuery(create_attending, testing=False)
+
+create_post = """MATCH (e)
+WHERE e.name = "Bob's birthday party"
+CREATE (p:Post {message: "I'll be there!"})-[r:posted]->(e)"""
+
+add_author = """MATCH (p:Post)-[]->(e), (a)
+WHERE e.name = "Bob's birthday party" AND a.name = "Alice"
+CREATE (p)-[r:author]->(a)"""
+
+sendQueries([create_post, add_author], testing=False)
 
 #%%
 
