@@ -113,9 +113,7 @@ def checkForUpdates(session, originalQuery=None, testing=True):
     if detached_nodes.peek():
         print('Detached nodes')
         
-        for record in detached_nodes:
-            deleteObject(record[0], record[1])
-            
+        # First remove edges, then the nodes
         query_detached_edges = """MATCH (a)-[e]->(b)
         WHERE b.graph_status = "detach"
         RETURN e, type(e), labels(a), labels(b)"""
@@ -125,6 +123,9 @@ def checkForUpdates(session, originalQuery=None, testing=True):
         for d in to_detach_edges:
             nodes = d[0].nodes
             removeEdge(nodes[0],nodes[1],d[1],d[2],d[3])
+        
+        for record in detached_nodes:
+            deleteObject(record[0], record[1])
         
 def createObject(node, labels, keys):
     node_id = node.id
@@ -149,15 +150,15 @@ def createObject(node, labels, keys):
     else:
         objDict.update(**{'attributedTo': '$DOMAIN',
             'published': '$NOW',
-            'temp_uuid': "$UUID",
+            'uuid': "$UUID",
             })
         
         note = manager.Note(**objDict)
         
         create = manager.Create(**{
-            'actor': '$DOMAIN',
             'object': note.to_dict(),
             'published': '$NOW',
+            'id': str(note.attributedTo) + '/outbox/' + str(note.uuid),
             }
         )
         
@@ -168,6 +169,7 @@ def createObject(node, labels, keys):
             'box': 'outbox',
             'type': ['Create'],
             'meta': {'undo': False, 'deleted': False},
+            'remote_id': str(note.attributedTo) + '/outbox/' + str(note.uuid),
             })
         
         db.activities.insert_one(message.to_dict())
@@ -222,10 +224,15 @@ def removeEdge(ingoingNode, outgoingNode, name, labelsA, labelsB):
     id1 = ingoingNode.id
     id2 = outgoingNode.id
     
-    if "Person" in labelsA:
-        removeOutgoingEdge(db.actors, id1, name, id2)
+    if "Person" in labelsB:
+        node2 = db.actors.find_one({"object_id": str(id2)})
     else:
-        removeOutgoingEdge(db.activities, id1, name, id2)
+        node2 = db.activities.find_one({"object_id": str(id2)})
+    
+    if "Person" in labelsA:
+        removeOutgoingEdge(db.actors, id1, name, node2)
+    else:
+        removeOutgoingEdge(db.activities, id1, name, node2)
         
 def setOutgoingEdge(table, idNr, edgeName, outgoingNode):
     # Helper function created so that instead of overwriting edges with the same name,
@@ -236,6 +243,12 @@ def setOutgoingEdge(table, idNr, edgeName, outgoingNode):
     node = table.find_one({"object_id": str(idNr)})
     
     nested = ""
+    
+    if 'id' in outgoingNode:
+        outgoingId = outgoingNode['id']
+    else:
+        outgoingId = outgoingNode['remote_id']
+    
     if table.name == 'activities':
         # if the object is an activity, the edge has to be added to the nested object
         nested = "activity.object."
@@ -245,21 +258,27 @@ def setOutgoingEdge(table, idNr, edgeName, outgoingNode):
         value = node[edgeName]
         print('value', type(value), value)
         if type(value) is list:
-            value.append(outgoingNode)
+            value.append(outgoingId)
             
             nodeResult = table.find_one_and_update({"object_id": str(idNr)}, {"$set": {nested + edgeName: value}})
         else:
             raise Exception('Expected list, got ' + type(value))
     else:
-        nodeResult = table.find_one_and_update({"object_id": str(idNr)}, {"$set": {nested + edgeName: [outgoingNode]}})
+        nodeResult = table.find_one_and_update({"object_id": str(idNr)}, {"$set": {nested + edgeName: [outgoingId]}})
     return nodeResult
 
-def removeOutgoingEdge(table, idNr, edgeName, outgoingId):
+def removeOutgoingEdge(table, idNr, edgeName, outgoingNode):
     
     node = table.find_one({"object_id": str(idNr)})
     
     toDelete = None
     nested = ""
+    
+    if 'id' in outgoingNode:
+        outgoingId = outgoingNode['id']
+    else:
+        outgoingId = outgoingNode['remote_id']
+    
     if table.name == 'activities':
         # if the object is an activity, the edge has to be removed from the nested object
         nested = "activity.object."
@@ -269,7 +288,7 @@ def removeOutgoingEdge(table, idNr, edgeName, outgoingId):
         value = node[edgeName]
         if type(value) is list:
             for n in value:
-                if n['object_id'] == str(outgoingId):
+                if n == str(outgoingId):
                     toDelete = n
             
             # check if edge is found
