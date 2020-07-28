@@ -12,6 +12,8 @@ from activitypub.database import MongoDatabase
 database = MongoDatabase("mongodb://localhost:27017", "dsblank_localhost")
 manager = Manager(database=database)
 
+federated = True # is this ActivityPub instance federated or not
+
 #%%
 
 def orderedCollection(items):
@@ -23,8 +25,6 @@ def orderedCollection(items):
         "totalItems": len(items),
         "orderedItems": items,}
     return contents
-
-domain_url = "http://localhost:5000/"
 
 def setIdToString(obj):
     if "_id" in obj:
@@ -40,7 +40,7 @@ def setIdToString(obj):
     return obj
 
 def findUser(self, nickname):
-    obj = self.database.actors.find_one({'id': domain_url + nickname})
+    obj = self.database.actors.find_one({'id': request.url_root + nickname})
     if isinstance(obj, dict):
         obj = setIdToString(obj)
         return obj
@@ -58,9 +58,9 @@ def route_user(self, nickname):
 
 @app.route("/user/<nickname>/outbox", ["GET", "POST"])
 def route_user_outbox(self, nickname):
-    obj = findUser(self, nickname)
-    if obj:
-        return sendToOutbox(self, obj)
+    user = findUser(self, nickname)
+    if user:
+        return sendToOutbox(self, user)
     else:
         return self.error(404)
     
@@ -68,11 +68,11 @@ def route_user_outbox(self, nickname):
 def route_outbox(self):
     return sendToOutbox(self)
 
-def sendToOutbox(self, obj=None):
+def sendToOutbox(self, user=None):
     if request.method == "GET":
         activities = []
-        if not obj is None:
-            entries = self.database.activities.find({'box': 'outbox', 'activity.object.attributedTo': obj['id']})
+        if not user is None:
+            entries = self.database.activities.find({'box': 'outbox', 'activity.object.attributedTo': user['id']})
         else:
             entries = self.database.activities.find({'box': 'outbox'})
         
@@ -84,52 +84,105 @@ def sendToOutbox(self, obj=None):
     elif request.method == "POST":
         data = request.get_json(force=True)#.to_dict()
         
-        if obj is None:
-            attributed = '$DOMAIN'
-        else:
-            attributed = obj['id']
+        message = createActivity(data, box='outbox')
         
-        if not 'type' in data:
-            data.update(**{'type': 'Note'})
-        
-        data.update(**{'id': attributed + '/' + data['type'].lower()})
-        
-        data.update(**{'attributedTo': attributed,
-                'published': '$NOW',
-                'temp_uuid': "$UUID",
-        })
-        
-        create = manager.Create(**{
-                'object': data,
-                'published': '$NOW',
-                'id': str(data.attributedTo) + '/outbox/' + str(data.uuid),
-        })
-        
-        message = manager.Create(
-        **{
-                'activity': create.to_dict(),
-                'box': 'outbox',
-                'type': ['Create'],
-                'meta': {'undo': False, 'deleted': False},
-                'remote_id': str(data.attributedTo) + '/outbox/' + str(data.uuid),
-        })
         self.database.activities.insert_one(message.to_dict())
         return self.render_json(
             setIdToString(message.to_dict())
         )
     
-@app.route("/user/<nickname>/inbox", ["GET"])
+@app.route("/user/<nickname>/inbox", ["GET", "POST"])
 def route_user_inbox(self, nickname):
-    obj = findUser(self, nickname)
-    if obj:
-        activities = []
-        for a in self.database.activities.find({'box': 'outbox', 'activity.object.to': obj['id']}):
-            activities.append(setIdToString(a))
-        return self.render_json(
-            orderedCollection(activities)
-        )
+    user = findUser(self, nickname)
+    if user:
+        if request.method == "GET":
+            activities = []
+            for a in self.database.activities.find({'box': 'inbox', 'activity.object.to': user['id']}):
+                activities.append(setIdToString(a))
+            return self.render_json(
+                orderedCollection(activities)
+            )
+        elif request.method == "POST":
+            if federated:
+                data = request.get_json(force=True)#.to_dict()
+                
+                for actor in getRecipients(self,data):
+                    message = createActivity(data, box='inbox', id_preset=actor['id'])
+                    
+                    self.database.activities.insert_one(message.to_dict())
+                return self.render_json(
+                    setIdToString(message.to_dict())
+                )
+            else:
+                return self.error(405)
     else:
         return self.error(404)
+    
+def getRecipients(self, obj):
+    
+    recipients = set()
+    
+    for rec in ["to", "bto", "cc", "bcc", "audience"]:
+        if rec in obj:
+            if isinstance(obj[rec], list):
+                recipients.update([r for r in obj[rec] if isinstance(r, str)])
+            elif isinstance(obj[rec], str):
+                recipients.add(obj[rec])
+    
+    actors = []
+    for userId in recipients:
+        actor = self.database.actors.find_one({"id": userId})
+        if actor:
+            actors.append(actor)
+    
+    return actors
+
+def createActivity(data, actor=None, box='outbox', id_preset=''):
+    if actor is None:
+        attributed = '$DOMAIN'
+    else:
+        attributed = actor['id']
+        
+    if id_preset == '':
+        id_preset = attributed
+    
+    data.update(**{'attributedTo': attributed,
+                'published': '$NOW',
+                'uuid': "$UUID",
+        })
+        
+    data.update(**{'id': id_preset + '/' + box + '/$UUID'})
+    
+    if 'type' in data and data['type'] in ['Create', 'Update', 'Delete']:
+        msg_type = data['type']
+    else:
+        msg_type = 'Create'
+        
+        if not 'type' in data:
+            data.update(**{'type': 'Note'})
+        
+        note = manager.Note(**data)
+    
+        data = manager.Create(**{
+                'object': note.to_dict(),
+                'published': '$NOW',
+                'id': '$object.id'#id_preset + '/' + box + '/' + str(data.uuid),
+        }).to_dict()
+    
+    msg_data = {
+            'activity': data,
+            'box': box,
+            'type': [msg_type],
+            'meta': {'undo': False, 'deleted': False},
+            'remote_id': '$activity.id',#id_preset + '/' + box + '/' + str(note.uuid),
+            'db_status': 'new',
+            'time_posted': '$NOW',
+    }
+    
+    message = manager.Create(**msg_data
+    )
+    
+    return message
 
 @app.route("/user/<nickname>/outbox/<page>", ["GET"])
 def route_outbox_page(self, nickname, page):

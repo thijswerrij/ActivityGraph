@@ -265,7 +265,14 @@ def setOutgoingEdge(table, idNr, edgeName, outgoingNode):
             raise Exception('Expected list, got ' + type(value))
     else:
         nodeResult = table.find_one_and_update({"object_id": str(idNr)}, {"$set": {nested + edgeName: [outgoingId]}})
-    return nodeResult
+    
+    if table.name == 'activities' and edgeName in ["attributedTo", "actor", "author"]: # check if the outgoing node is possibly an author
+        nodeResult = table.find_one_and_update({"object_id": str(idNr)}, {"$set": {nested + "attributedTo": outgoingId}})
+        uuid = nodeResult['activity']['object']['uuid']
+        nodeResult = table.find_one_and_update({"object_id": str(idNr)},
+                                                {"$set": {'remote_id': outgoingId + '/outbox/' + str(uuid),
+                                                          'activity.id': outgoingId + '/outbox/' + str(uuid)}})
+    return nodeResult 
 
 def removeOutgoingEdge(table, idNr, edgeName, outgoingNode):
     
