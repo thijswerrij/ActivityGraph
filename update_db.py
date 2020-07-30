@@ -9,6 +9,8 @@ from activitypub.database import MongoDatabase
 
 from cypher_read import sendSimpleQuery
 
+import re
+
 #%%
 
 ## Pick one:
@@ -22,7 +24,7 @@ manager = Manager(database=db)
 
 static_attributes =  ['@context', 'id', 'uuid', 'published', 'object_id', '_id']
 
-exclude_from_nodes = static_attributes + ['id', 'type', 'attributedTo', 'to']
+exclude_from_nodes = static_attributes + ['id', 'type']
 
 #%%
 
@@ -37,16 +39,13 @@ def updateDB():
                 print('Create')
                 
                 removeAttributes(obj, exclude_from_nodes)
-                node = createNode(obj)
+                node, graph_id = createNode(obj)
                 
-                if node:
-                    for record in node:
-                        #print(record[0], record[1])
-                        graph_id = record[1]
-                        
-                    db.activities.find_one_and_update({"remote_id": a["remote_id"]}, {"$set": {"db_status": "", "object_id":str(graph_id)}})
-                else:
-                    db.activities.find_one_and_update({"remote_id": a["remote_id"]}, {"$set": {"db_status": ""}})
+                if graph_id:
+                    db.activities.find_one_and_update({"remote_id": a["remote_id"]}, {"$set": {"object_id":str(graph_id)}})
+                    #db.activities.find_one_and_update({"remote_id": a["remote_id"]}, {"$set": {"db_status": "", "object_id":str(graph_id)}})
+                #else:
+                    #db.activities.find_one_and_update({"remote_id": a["remote_id"]}, {"$set": {"db_status": ""}})
             elif 'Update' in aType:
                 print('Update')
                 updates = obj
@@ -94,27 +93,91 @@ def retrieveObject(obj):
     return None
 
 def removeAttributes(obj, attrList):
+    removed = {}
     for toRemove in attrList:
-        obj.pop(toRemove, None)
-    return obj
+        removed[toRemove] = obj.pop(toRemove, None)
+    return removed
 
 def createNode(obj):
     if not 'type' in obj:
         objType = "Note"
     else:
         objType = str(obj["type"])
-    create_query = """CREATE (n:""" + objType + " " + stringifyDict(obj) + """) RETURN n, id(n)"""
-    #print(create_query)
-    return sendSimpleQuery(create_query)
-
-def updateNode(obj, graphId):
-    update_query = """MATCH (n) WHERE id(n) = """ + str(graphId) + """ SET n += """ + stringifyDict(obj) + """ RETURN n, id(n)"""
-    return sendSimpleQuery(update_query)
     
-def deleteNode(graphId):
-    delete_query = """MATCH (n) WHERE id(n) = """ + str(graphId) + """ DETACH DELETE n RETURN n, id(n)"""
+    edges = filterNodes(obj)
+    
+    create_query = """CREATE (n:""" + objType + " " + stringifyDict(obj) + """) RETURN n, id(n)"""
+    
+    node = sendSimpleQuery(create_query)
+    
+    graph_id = None
+    if node:
+        for record in node:
+            graph_id = record[1]
+    
+    for k in edges.keys():
+        if isinstance(edges[k],list):
+            for e in edges[k]:
+                edge_query = createEdgeQuery(k, e, graph_id)
+                print(edge_query)
+                sendSimpleQuery(edge_query)
+        else:
+            edge_query = createEdgeQuery(k, edges[k], graph_id)
+            sendSimpleQuery(edge_query)
+    
+    return node, graph_id
+
+def updateNode(obj, graph_id):
+    update_query = """MATCH (n) WHERE id(n) = """ + str(graph_id) + """ SET n += """ + stringifyDict(obj) + """ RETURN n, id(n)"""
+    
+    node = sendSimpleQuery(update_query)
+    
+    for record in sendSimpleQuery("""MATCH (n)-[r]->(m) WHERE id(n) = %s RETURN type(r)""" % graph_id):
+        edgeName = str(record[0])
+        if edgeName in obj:
+            sendSimpleQuery("""MATCH (n)-[r]->(m) WHERE id(n) = %s AND type(r) = %s DELETE r""" % (graph_id, edgeName))
+            
+    edges = filterNodes(obj)
+    
+    for k in edges.keys():
+        if isinstance(edges[k],list):
+            for e in edges[k]:
+                edge_query = createEdgeQuery(k, e, graph_id)
+                print(edge_query)
+                sendSimpleQuery(edge_query)
+        else:
+            edge_query = createEdgeQuery(k, edges[k], graph_id)
+            sendSimpleQuery(edge_query)
+            
+    return node
+    
+def deleteNode(graph_id):
+    delete_query = """MATCH (n) WHERE id(n) = """ + str(graph_id) + """ DETACH DELETE n RETURN n, id(n)"""
     return sendSimpleQuery(delete_query)
+
+def filterNodes(obj):
+    # Some parameters are node ids: these need to be added as edges in the graph instead of as properties.
+    keys = obj.keys()
+    toRemove = []
+    
+    for k in keys:
+        value = obj[k]
+        if isinstance(value,list) and isinstance(value[0],str) and (re.search("^https?:\/\/", value[0])):
+            toRemove.append(k)
+        elif isinstance(value,str) and (re.search("^https?:\/\/", value)):
+            toRemove.append(k)
+    
+    return removeAttributes(obj, toRemove)     
+
+def createEdgeQuery(name, url, ingoingId):
+    outgoingNode = db.actors.find_one({"id": str(url)})
+    if not outgoingNode:
+        outgoingNode = db.activities.find_one({"remote_id": str(url)})
         
+    if outgoingNode and "object_id" in outgoingNode:
+        edge_query = """MATCH (n), (m) WHERE id(n) = %s AND id(m) = %s CREATE (n)-[r:%s]->(m)"""
+        return edge_query % (ingoingId, outgoingNode["object_id"], name)
+    return None
 
 def stringifyDict(obj):
     dict_string = "{ "
