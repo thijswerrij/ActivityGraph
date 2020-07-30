@@ -32,45 +32,61 @@ def updateDB():
         aType = a['type']
         obj = retrieveObject(a)
         
-        if 'Create' in aType:
-            print('Create')
-            
-            removeAttributes(obj, exclude_from_nodes)
-            node = createNode(obj)
-            
-            if node:
-                for record in node:
-                    #print(record[0], record[1])
-                    graph_id = record[1]
+        if obj:
+            if 'Create' in aType:
+                print('Create')
+                
+                removeAttributes(obj, exclude_from_nodes)
+                node = createNode(obj)
+                
+                if node:
+                    for record in node:
+                        #print(record[0], record[1])
+                        graph_id = record[1]
+                        
+                    db.activities.find_one_and_update({"remote_id": a["remote_id"]}, {"$set": {"db_status": "", "object_id":str(graph_id)}})
+                else:
+                    db.activities.find_one_and_update({"remote_id": a["remote_id"]}, {"$set": {"db_status": ""}})
+            elif 'Update' in aType:
+                print('Update')
+                updates = obj
+                objId = obj["id"]
+                
+                original_activity = db.activities.find_one({"remote_id": objId})
+                to_be_updated = retrieveObject(original_activity)
+                
+                if (to_be_updated):
+                    removeAttributes(updates, static_attributes)
+                    to_be_updated.update(updates)
+                    db.activities.find_one_and_update({"remote_id": objId}, {"$set": {"activity.object": to_be_updated}})
                     
-                db.activities.find_one_and_update({"remote_id": a["remote_id"]}, {"$set": {"db_status": "", "object_id":str(graph_id)}})
-        elif 'Update' in aType:
-            print('Update')
-            updates = obj
-            objId = obj["id"]
-            
-            original_activity = db.activities.find_one({"remote_id": objId})
-            to_be_updated = retrieveObject(original_activity)
-            
-            if (to_be_updated):
-                removeAttributes(updates, static_attributes)
-                to_be_updated.update(updates)
-                db.activities.find_one_and_update({"remote_id": objId}, {"$set": {"activity.object": to_be_updated}})
-            
-            #db.activities.delete_one({"remote_id": a['remote_id']})
-            
-        elif 'Delete' in aType:
-            print('Delete')
-            
-            db.activities.delete_one({"remote_id": obj['id']})
-            db.activities.delete_one({"remote_id": a['remote_id']})
-            
-            tombstone = manager.Create(**{
-                'type': ['Tombstone'],
-                'id': obj['id']
-            })
-            
-            db.activities.insert_one(tombstone.to_dict())
+                if "object_id" in original_activity:
+                    removeAttributes(obj, exclude_from_nodes)
+                    node = updateNode(obj, original_activity["object_id"])
+                
+                #db.activities.delete_one({"remote_id": a['remote_id']})
+                
+            elif 'Delete' in aType:
+                print('Delete')
+                
+                original_activity = db.activities.find_one({"remote_id": obj["id"]})
+                
+                #db.activities.delete_one({"remote_id": obj['id']})
+                #db.activities.delete_one({"remote_id": a['remote_id']})
+                
+                tombstone = manager.Create(**{
+                    'type': ['Tombstone'],
+                    'id': obj['id']
+                })
+                
+                db.activities.insert_one(tombstone.to_dict())
+                
+                if "object_id" in original_activity:
+                    node = deleteNode(original_activity["object_id"])
+        else:
+            # Create/Update/Delete activity should contain object
+            db.activities.find_one_and_update({"remote_id": a["remote_id"]}, {"$set": {"db_status": "invalid"}})
+                
 
 def retrieveObject(obj):
     if 'activity' in obj and 'object' in obj['activity']:
@@ -83,15 +99,22 @@ def removeAttributes(obj, attrList):
     return obj
 
 def createNode(obj):
-    if obj:
-        if not 'type' in obj:
-            objType = "Note"
-        else:
-            objType = str(obj["type"])
-        create_query = """CREATE (n:""" + objType + " " + stringifyDict(obj) + """) RETURN n, id(n)"""
-        #print(create_query)
-        return sendSimpleQuery(create_query)
-    return None
+    if not 'type' in obj:
+        objType = "Note"
+    else:
+        objType = str(obj["type"])
+    create_query = """CREATE (n:""" + objType + " " + stringifyDict(obj) + """) RETURN n, id(n)"""
+    #print(create_query)
+    return sendSimpleQuery(create_query)
+
+def updateNode(obj, graphId):
+    update_query = """MATCH (n) WHERE id(n) = """ + str(graphId) + """ SET n += """ + stringifyDict(obj) + """ RETURN n, id(n)"""
+    return sendSimpleQuery(update_query)
+    
+def deleteNode(graphId):
+    delete_query = """MATCH (n) WHERE id(n) = """ + str(graphId) + """ DETACH DELETE n RETURN n, id(n)"""
+    return sendSimpleQuery(delete_query)
+        
 
 def stringifyDict(obj):
     dict_string = "{ "
