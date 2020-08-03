@@ -193,3 +193,12 @@ def route_outbox_page(self, nickname, page):
         )
     else:
         return self.error(404)
+    
+@app.route("/", ["GET"])
+def route_home(self):
+    return self.render_template(
+        "index.html"
+        )
+    
+if __name__ == "__main__":
+    manager.run()
