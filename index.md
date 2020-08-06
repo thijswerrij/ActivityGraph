@@ -2,7 +2,7 @@ ActivityGraph enables users to query ActivityPub in the way they are used to wit
 
 ## How does it work?
 
-We keep two separate datasets: one ActivityPub instance and one graph representation of that instance. These two can receive requests or queries, respectively, and because they need to represent the same data, they also update each other.
+It keeps two separate datasets: one ActivityPub instance and one graph representation of that instance. These two can receive requests or queries, respectively, and because they need to represent the same data, they also update each other.
 
 ![ActivityGraph overview](overview.png "An overview of how ActivityGraph works")
 
