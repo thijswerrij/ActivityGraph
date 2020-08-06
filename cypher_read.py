@@ -5,7 +5,7 @@
 
 from neo4j import GraphDatabase, basic_auth
 import re
-from time import time, sleep
+#from time import time, sleep
 
 from check_db import checkForUpdates
 
@@ -20,7 +20,7 @@ except NameError:
 
 #%%
 
-def checkQuery (input_query, testing = True):
+def checkQuery (input_query, testing = False):
     
     # Queries are identified immediately, splitQuery does the rest of query modification
     if (re.search("CREATE", input_query)):

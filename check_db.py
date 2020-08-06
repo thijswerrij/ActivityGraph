@@ -61,7 +61,7 @@ RETURN e, type(e), labels(a), labels(b)
 ORDER BY e.time
 """
 
-def checkForUpdates(session, originalQuery=None, testing=True):
+def checkForUpdates(session, originalQuery=None, testing=False):
     created_nodes = session.run(match_nodes % "new")
     created_edges = session.run(match_edges % "new")
     
