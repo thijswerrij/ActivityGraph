@@ -76,7 +76,6 @@ def splitQuery (input_query, query_type):
     # Query is split, either in one or three parts, depending whether the regex
     # captures the whole statement or just a part, respectively.
     split_query = type_regex.split(input_query)
-    #print('split_query', split_query)
     
     if (len(split_query) == 1):
         mid_query = split_query[0]
@@ -145,9 +144,7 @@ def splitQuery (input_query, query_type):
         
         for r in re.findall(regex, mid_query):
             rr_list.append(r + "." + properties)
-            
-    #print ("rr_list", rr_list)
-    
+        
     if (query_type == "CREATE"):
         return_query = "CREATE " + ', '.join(rr_list)
     elif (query_type == "SET"):
@@ -169,7 +166,6 @@ def matchQuery(input_query):
     return []
 
 def sendQuery(input_query, testing, query_type=None, originalQuery=None, show_output=False):
-    print(input_query)
     results = session.run(input_query)
     
     if (query_type != None):

@@ -20,6 +20,7 @@ manager = Manager(database=db)
 
 #%%
 
+# This is a function you can run if you already have an existing graph but no ActivityPub instance
 def initializeGraph(session):
     initial_nodes = """
     MATCH (n)
@@ -256,7 +257,6 @@ def setOutgoingEdge(table, idNr, edgeName, outgoingNode):
     
     if edgeName in node:
         value = node[edgeName]
-        print('value', type(value), value)
         if type(value) is list:
             value.append(outgoingId)
             

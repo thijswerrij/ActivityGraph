@@ -28,6 +28,7 @@ exclude_from_nodes = static_attributes + ['id', 'type']
 
 #%%
 
+# Loops through all marked activities and processes them
 def updateDB():
     new_activities = sorted(list(db.activities.find({'db_status': 'new'})), key = lambda i: i['time_posted'])
     for a in new_activities:
@@ -36,18 +37,14 @@ def updateDB():
         
         if obj:
             if 'Create' in aType:
-                print('Create')
-                
                 removeAttributes(obj, exclude_from_nodes)
                 node, graph_id = createNode(obj)
                 
                 if graph_id:
-                    db.activities.find_one_and_update({"remote_id": a["remote_id"]}, {"$set": {"object_id":str(graph_id)}})
-                    #db.activities.find_one_and_update({"remote_id": a["remote_id"]}, {"$set": {"db_status": "", "object_id":str(graph_id)}})
-                #else:
-                    #db.activities.find_one_and_update({"remote_id": a["remote_id"]}, {"$set": {"db_status": ""}})
+                    db.activities.find_one_and_update({"remote_id": a["remote_id"]}, {"$set": {"db_status": "", "object_id":str(graph_id)}})
+                else:
+                    db.activities.find_one_and_update({"remote_id": a["remote_id"]}, {"$set": {"db_status": ""}})
             elif 'Update' in aType:
-                print('Update')
                 updates = obj
                 objId = obj["id"]
                 
@@ -63,15 +60,13 @@ def updateDB():
                     removeAttributes(obj, exclude_from_nodes)
                     node = updateNode(obj, original_activity["object_id"])
                 
-                #db.activities.delete_one({"remote_id": a['remote_id']})
+                db.activities.delete_one({"remote_id": a['remote_id']})
                 
             elif 'Delete' in aType:
-                print('Delete')
-                
                 original_activity = db.activities.find_one({"remote_id": obj["id"]})
                 
-                #db.activities.delete_one({"remote_id": obj['id']})
-                #db.activities.delete_one({"remote_id": a['remote_id']})
+                db.activities.delete_one({"remote_id": obj['id']})
+                db.activities.delete_one({"remote_id": a['remote_id']})
                 
                 tombstone = manager.Create(**{
                     'type': ['Tombstone'],
@@ -86,12 +81,14 @@ def updateDB():
             # Create/Update/Delete activity should contain object
             db.activities.find_one_and_update({"remote_id": a["remote_id"]}, {"$set": {"db_status": "invalid"}})
                 
-
+# Checks if activity contains object and returns it
 def retrieveObject(obj):
     if 'activity' in obj and 'object' in obj['activity']:
         return obj['activity']['object']
     return None
 
+# Removes a list of attributes from a dict, returns dict with removed values
+# (original dict already gets modified in the process so it does not need to be returned)
 def removeAttributes(obj, attrList):
     removed = {}
     for toRemove in attrList:
@@ -119,7 +116,6 @@ def createNode(obj):
         if isinstance(edges[k],list):
             for e in edges[k]:
                 edge_query = createEdgeQuery(k, e, graph_id)
-                print(edge_query)
                 sendSimpleQuery(edge_query)
         else:
             edge_query = createEdgeQuery(k, edges[k], graph_id)
@@ -143,7 +139,6 @@ def updateNode(obj, graph_id):
         if isinstance(edges[k],list):
             for e in edges[k]:
                 edge_query = createEdgeQuery(k, e, graph_id)
-                print(edge_query)
                 sendSimpleQuery(edge_query)
         else:
             edge_query = createEdgeQuery(k, edges[k], graph_id)
@@ -155,8 +150,8 @@ def deleteNode(graph_id):
     delete_query = """MATCH (n) WHERE id(n) = """ + str(graph_id) + """ DETACH DELETE n RETURN n, id(n)"""
     return sendSimpleQuery(delete_query)
 
+# Some parameters are node ids: these need to be added as edges in the graph instead of as properties.
 def filterNodes(obj):
-    # Some parameters are node ids: these need to be added as edges in the graph instead of as properties.
     keys = obj.keys()
     toRemove = []
     
@@ -179,6 +174,7 @@ def createEdgeQuery(name, url, ingoingId):
         return edge_query % (ingoingId, outgoingNode["object_id"], name)
     return None
 
+# Turns dicts into strings in such a way they can be used in queries
 def stringifyDict(obj):
     dict_string = "{ "
     for k in obj.keys():

@@ -9,6 +9,8 @@ from flask import request
 from activitypub.manager import FlaskManager as Manager
 from activitypub.database import MongoDatabase
 
+from update_db import updateDB
+
 database = MongoDatabase("mongodb://localhost:27017", "dsblank_localhost")
 manager = Manager(database=database)
 
@@ -16,6 +18,7 @@ federated = True # is this ActivityPub instance federated or not
 
 #%%
 
+# Returns list as ordered collection, as specified in ActivityPub
 def orderedCollection(items):
     if not isinstance(items, list):
         items = [items]
@@ -26,6 +29,7 @@ def orderedCollection(items):
         "orderedItems": items,}
     return contents
 
+# Recursively sets Mongo id's to strings
 def setIdToString(obj):
     if "_id" in obj:
         obj["_id"] = str(obj["_id"])
@@ -39,6 +43,7 @@ def setIdToString(obj):
         return obj
     return obj
 
+# Find a user by their nickname
 def findUser(self, nickname):
     obj = self.database.actors.find_one({'id': request.url_root + nickname})
     if isinstance(obj, dict):
@@ -110,6 +115,9 @@ def route_user_inbox(self, nickname):
                     message = createActivity(data, box='inbox', id_preset=actor['id'])
                     
                     self.database.activities.insert_one(message.to_dict())
+                    
+                    # only call this if you want to automatically update
+                    updateDB()
                 return self.render_json(
                     setIdToString(message.to_dict())
                 )
@@ -117,7 +125,8 @@ def route_user_inbox(self, nickname):
                 return self.error(405)
     else:
         return self.error(404)
-    
+
+# Searches all possible recipients, looks them up and returns them in a list
 def getRecipients(self, obj):
     
     recipients = set()
