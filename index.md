@@ -37,4 +37,4 @@ Afterwards, `update_db.py` is called, which processes the newly added activities
 
 ### Supported activities
 
-`Create`, `Update`, `Delete` are implemented. When POST-ing objects to inbox of a user, the application checks whether this object is an activity that contains one of these types AND a nested object. If so, these objects are processed accordingly. Otherwise, the object is processed as a 'normal' object and gets added to a newly created `Create` activity.
+`Create`, `Update`, `Delete` are implemented. When POST-ing objects to inbox of a user, the application checks whether it has received a valid activity that has one of these types AND contains a nested object. If so, this nested object is processed accordingly. Otherwise, the activity is processed as a 'normal' object and gets added to a newly created `Create` activity.
