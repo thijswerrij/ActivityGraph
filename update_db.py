@@ -24,7 +24,7 @@ manager = Manager(database=db)
 
 static_attributes =  ['@context', 'id', 'uuid', 'published', 'object_id', '_id']
 
-exclude_from_nodes = static_attributes + ['id', 'type']
+exclude_from_nodes = static_attributes + ['id']
 
 #%%
 
@@ -38,13 +38,21 @@ def updateDB():
         # If the activity contains an object, continue with that extracted object
         if obj:
             if 'Create' in aType:
+                # This is just to make sure all relevant info in the activity is also present in the object
+                activity = a['activity']
+                removeAttributes(activity,['object','type'])
+                obj = dict(list(obj.items()) + list(activity.items()))
+                new_obj = obj.copy()
+                
                 removeAttributes(obj, exclude_from_nodes)
                 node, graph_id = createNode(obj)
                 
+                
                 if graph_id:
-                    db.activities.find_one_and_update({"remote_id": a["remote_id"]}, {"$set": {"db_status": "", "object_id":str(graph_id)}})
+                    db.activities.find_one_and_update({"remote_id": a["remote_id"]}, {"$set": {"db_status": "", "activity.object": new_obj,
+                                                       "object_id":str(graph_id)}})
                 else:
-                    db.activities.find_one_and_update({"remote_id": a["remote_id"]}, {"$set": {"db_status": ""}})
+                    db.activities.find_one_and_update({"remote_id": a["remote_id"]}, {"$set": {"db_status": "", "activity.object": new_obj}})
             elif 'Update' in aType:
                 updates = obj
                 objId = obj["id"]
@@ -98,13 +106,14 @@ def removeAttributes(obj, attrList):
 
 def createNode(obj):
     if not 'type' in obj:
-        objType = "Note"
+        objType = ""
     else:
-        objType = str(obj["type"])
+        objType = ":" + str(obj["type"])
+        del obj["type"]
     
     edges = filterNodes(obj)
     
-    create_query = """CREATE (n:""" + objType + " " + stringifyDict(obj) + """) RETURN n, id(n)"""
+    create_query = """CREATE (n""" + objType + " " + stringifyDict(obj) + """) RETURN n, id(n)"""
     
     node = sendSimpleQuery(create_query)
     
@@ -126,7 +135,13 @@ def createNode(obj):
     return node, graph_id
 
 def updateNode(obj, graph_id):
-    update_query = """MATCH (n) WHERE id(n) = """ + str(graph_id) + """ SET n += """ + stringifyDict(obj) + """ RETURN n, id(n)"""
+    if not 'type' in obj:
+        setType = ""
+    else:
+        setType = ", n:" + str(obj["type"])
+        del obj["type"]
+    
+    update_query = """MATCH (n) WHERE id(n) = """ + str(graph_id) + """ SET n += """ + stringifyDict(obj) + setType + """ RETURN n, id(n)"""
     
     node = sendSimpleQuery(update_query)
     
@@ -190,5 +205,3 @@ def stringifyDict(obj):
             dict_string = dict_string + '"' + obj[k].replace('"','\\"') + '",'
     dict_string = dict_string[:-1]+ " }"
     return (dict_string)
-        
-updateDB()

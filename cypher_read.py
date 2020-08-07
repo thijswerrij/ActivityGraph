@@ -188,7 +188,9 @@ def sendQuery(input_query, testing, query_type=None, originalQuery=None, show_ou
         
     
 def sendSimpleQuery(input_query):
-    return session.run(input_query)
+    if input_query:
+        return session.run(input_query)
+    return None
     
 def finalizeGraph():
     
