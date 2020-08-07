@@ -33,4 +33,4 @@ After sending POST requests to an inbox, `update_db.py` is called, which process
 
 ### Supported activities
 
-`Create`, `Update`, `Delete` are implemented. When POST-ing objects to inbox of a user, the application checks whether it has received a valid activity that has one of these types AND contains a nested object. If so, this nested object is processed accordingly. Otherwise, the activity is processed as a 'normal' object and gets added to a newly created `Create` activity.
+`Create`, `Update`, `Delete` are implemented. When POST-ing objects to inbox of a user, the application checks whether it has received a valid activity that has one of these types AND contains a nested object. If so, this nested object is processed accordingly. Otherwise, the activity is processed as a 'normal' object and gets added to a newly created `Create` activity. However, when POST-ing an Update or Delete activity, make sure that your nested object includes a valid, existing id, otherwise it will not work and it will just be deleted.
