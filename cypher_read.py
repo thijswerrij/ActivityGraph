@@ -5,7 +5,7 @@
 
 from neo4j import GraphDatabase, basic_auth
 import re
-#from time import time, sleep
+#from time import time
 
 from check_db import checkForUpdates
 
@@ -22,55 +22,55 @@ except NameError:
 
 def checkQuery (input_query, testing = False):
     
-    # Queries are identified immediately, splitQuery does the rest of query modification
-    if (re.search("CREATE", input_query)):
-        modified_query = splitQuery(input_query, "CREATE")
-    elif (re.search("SET", input_query)):
-        modified_query = splitQuery(input_query, "SET")
-    elif (re.search("DETACH DELETE", input_query)):
-        modified_query = splitQuery(input_query, "DETACH")
-    elif (re.search("DELETE", input_query)):
-        modified_query = splitQuery(input_query, "DELETE")
+    # splitQuery identifies queries and modifies them
+    modified_query = splitQuery(input_query)
     
     if not testing:
         sendQuery(modified_query, testing, originalQuery=input_query)
     else:
         print(modified_query)
     
-def splitQuery (input_query, query_type):
+def splitQuery (input_query):
     rr_list = []
     carry = ""
     query_is_split = False
     
-    # These regular expressions are simply to recognize CREATE, SET or DELETE
+    # These regular expressions are to recognize CREATE, SET or DELETE
     # statements and separate them from the rest of the query
+    # Expressions can get very complex when there are many ways to define statements
     create_regex = re.compile("(CREATE \(.+\)(?:, \(.+\))*)")
-    set_regex    = re.compile("(SET .+ = \S+)")
+    set_regex    = re.compile("(SET (?:(?:(?:\([\s\S]+?\)|\w+)(?:\.\w+)? \+?= (?:\{[\s\S]*?}|\S+)|\w+(?::\w+)+)(?:,\s)?)*)")
     delete_regex = re.compile("((?:DETACH )?DELETE \w+(?:, [^,\s]+)*)")
     
-    if (query_type == "CREATE"):
+    if ("CREATE" in input_query):
+        query_type = "CREATE"
         properties = "graph_status:'new'"
         type_regex = create_regex
-    elif (query_type == "SET"):
+    elif ("SET" in input_query):
+        query_type = "SET"
         properties = "graph_status = 'updated'"
         type_regex = set_regex
-    elif (query_type == "DELETE"):
-        properties = "graph_status = 'delete'"
-        type_regex = delete_regex
-    elif (query_type == "DETACH"):
+    elif ("DETACH DELETE" in input_query):
+        query_type = "DETACH"
         properties = "graph_status = 'detach'"
         type_regex = delete_regex
+    elif ("DELETE" in input_query):
+        query_type = "DELETE"
+        properties = "graph_status = 'delete'"
+        type_regex = delete_regex
     else:
-        # So far, only CREATE, SET and (DETACH) DELETE have been implemented
-        raise Exception('Unexpected query type')
-        
+        # Only CREATE, SET and (DETACH) DELETE have been implemented
+        query_type = None
+        # raise Exception('Unexpected query type')
+    
+    # Next line can be uncommented if you want to add time as a property
     #properties += ", time:'" + str(time()) + "'"
     
-    if not (type_regex.search(input_query)):
+    if query_type is None or not (type_regex.search(input_query)):
         # If correct syntax not detected, simply send the query so neo4j can send
         # a response. This is so that all incorrect queries are handled by the
         # neo4j parser immediately, and can give a meaningful error log.
-        print("no match")
+        print("No match, query has not been modified")
         return input_query
     
     # Query is split, either in one or three parts, depending whether the regex
@@ -133,16 +133,19 @@ def splitQuery (input_query, query_type):
                 
     elif (query_type == "SET"):
         # This regex captures all nodes mentioned after SET and adds them to rr_list
-        regex = "(?:SET)? (\([\s\S]+\)|\w+)(?:\.\w+)? = \S+"
+        regex = "(?:SET )?(?:(\([\s\S]+\)|\w+)(?:\.\w+)? \+?= (?:\{.*?\}|\S+))|(?:(\w+)(?::\w+)+)"
         
-        for r in re.findall(regex, mid_query):
-            rr_list.append(r + "." + properties)
+        for r in set(re.findall(regex, mid_query)):
+            if r[0] != "":
+                rr_list.append(r[0] + "." + properties)
+            elif r[1] != "":
+                rr_list.append(r[1] + "." + properties)
 
     elif (query_type == "DELETE" or query_type == "DETACH"):
         # This regex captures all nodes mentioned after DELETE and adds them to rr_list
         regex = "(?:(?:DETACH )?DELETE )?(\w+)"
         
-        for r in re.findall(regex, mid_query):
+        for r in set(re.findall(regex, mid_query)):
             rr_list.append(r + "." + properties)
         
     if (query_type == "CREATE"):
