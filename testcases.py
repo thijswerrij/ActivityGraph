@@ -31,7 +31,7 @@ checkQuery(update_bob, testing=False)
 
 create_birthday = """MATCH (b)
 WHERE b.name = "Bob"
-CREATE (e:Event {name:"Bob's birthday party", date:"01-01-2021", location:"Nijmegen", description:"More info soon to follow."})-[r:organizer]->(b)
+CREATE (e:Event {name:"Bob's birthday party", date:"01-01-2021", location:"Nijmegen", description:"More info soon to follow."})-[r:attributedTo]->(b)
 """
 
 checkQuery(create_birthday, testing=False)

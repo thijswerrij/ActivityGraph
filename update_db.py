@@ -35,6 +35,7 @@ def updateDB():
         aType = a['type']
         obj = retrieveObject(a)
         
+        # If the activity contains an object, continue with that extracted object
         if obj:
             if 'Create' in aType:
                 removeAttributes(obj, exclude_from_nodes)
@@ -112,6 +113,7 @@ def createNode(obj):
         for record in node:
             graph_id = record[1]
     
+    # For every property that links to another node, an edge needs to be created
     for k in edges.keys():
         if isinstance(edges[k],list):
             for e in edges[k]:
@@ -135,6 +137,7 @@ def updateNode(obj, graph_id):
             
     edges = filterNodes(obj)
     
+    # For every new/updated property that links to another node, an edge needs to be created
     for k in edges.keys():
         if isinstance(edges[k],list):
             for e in edges[k]:

@@ -182,7 +182,6 @@ def createActivity(data, actor=None, box='outbox', id_preset=''):
             'activity': data,
             'box': box,
             'type': [msg_type],
-            'meta': {'undo': False, 'deleted': False},
             'remote_id': '$activity.id',#id_preset + '/' + box + '/' + str(note.uuid),
             'db_status': 'new',
             'time_posted': '$NOW',

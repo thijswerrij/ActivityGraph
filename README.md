@@ -27,7 +27,9 @@ To interact with the application, send GET/POST requests to:
 ```localhost:5000/[user]/outbox```  
 ```localhost:5000/[user]/inbox```
 
-Afterwards, `update_db.py` is called, which processes the newly added activities and modifies both the instance and the graph representation.
+E.g. for the provided queries in ```testcases.py```, check ```/alice/outbox``` and ```/bob/outbox```.
+
+After sending POST requests to an inbox, `update_db.py` is called, which processes the newly added activities and modifies both the instance and the graph representation.
 
 ### Supported activities
 
