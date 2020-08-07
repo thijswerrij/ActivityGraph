@@ -131,6 +131,8 @@ def splitQuery (input_query):
             else:
                 rr_list.append(rr)
                 
+        return_query = "CREATE " + ', '.join(rr_list)
+                
     elif (query_type == "SET"):
         # This regex captures all nodes mentioned after SET and adds them to rr_list
         regex = "(?:SET )?(?:(\([\s\S]+\)|\w+)(?:\.\w+)? \+?= (?:\{.*?\}|\S+))|(?:(\w+)(?::\w+)+)"
@@ -140,6 +142,8 @@ def splitQuery (input_query):
                 rr_list.append(r[0] + "." + properties)
             elif r[1] != "":
                 rr_list.append(r[1] + "." + properties)
+                
+        return_query = mid_query + ', '.join([''] + rr_list)
 
     elif (query_type == "DELETE" or query_type == "DETACH"):
         # This regex captures all nodes mentioned after DELETE and adds them to rr_list
@@ -148,11 +152,6 @@ def splitQuery (input_query):
         for r in set(re.findall(regex, mid_query)):
             rr_list.append(r + "." + properties)
         
-    if (query_type == "CREATE"):
-        return_query = "CREATE " + ', '.join(rr_list)
-    elif (query_type == "SET"):
-        return_query = mid_query + ', '.join([''] + rr_list)
-    elif (query_type == "DELETE" or query_type == "DETACH"):
         # this SET is intentional, node needs to be preserved and deleted later
         return_query = "SET " + ', '.join(rr_list)
     
