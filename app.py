@@ -146,11 +146,17 @@ def getRecipients(self, obj):
     
     return actors
 
-def createActivity(data, actor=None, box='outbox', id_preset=''):
-    if actor is None:
-        attributed = '$DOMAIN'
-    else:
-        attributed = actor['id']
+def createActivity(data, box='outbox', id_preset=''):
+    
+    # this part checks if a possible author can be identified and thus assigned to attributedTo
+    attributed = '$DOMAIN'
+    possible_authors = ["attributedTo", "actor", "author", "creator"]
+    for author in possible_authors:
+        if author in data:
+            attributed = data[author]
+            break
+        elif data['object'] and author in data['object']:
+            attributed = data['object'][author]
         
     if id_preset == '':
         id_preset = attributed
