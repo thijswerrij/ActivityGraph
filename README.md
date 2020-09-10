@@ -4,6 +4,16 @@ ActivityGraph enables users to query ActivityPub in the way they are used to wit
 
 The application uses Neo4j, Flask and MongoDB. Alternative database options are available in the code, as the ActivityPub instance runs using the Python library as published at [dsblank/activitypub](https://github.com/dsblank/activitypub).
 
+## Setup
+
+Before running the code, make sure you've installed the modules `neo4j`, `flask`, `pymongo` and `activitypub`.
+
+You need to run an instance of MongoDB. The ActivityPub data is stored at `localhost:27017`.
+
+You also need to run a graph in Neo4j. I personally use Neo4j Desktop, here you simply need to make a graph with password 'hunter2' (you can change this password in `cypher_read.py`) and run it.
+
+Once you have both of these programs running, you should be able to send queries and run `app.py`. 
+
 ## Graph
 
 Queries are handled by `cypher_read.py`. Using `checkQuery`, you can pass Cypher queries, which will then be modified and sent to Neo4j.
