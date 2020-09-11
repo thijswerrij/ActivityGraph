@@ -12,7 +12,7 @@ You need to run an instance of MongoDB. The ActivityPub data is stored at `local
 
 You also need to run a graph in Neo4j. I personally use Neo4j Desktop, here you simply need to make a graph with password 'hunter2' (you can change this password in `cypher_read.py`) and run it.
 
-Once you have both of these programs running, you should be able to send queries and run `app.py`. 
+Once you have both of these programs running, you should be able to send queries and run `app.py`. You can also try [the demo](demo_examples.md).
 
 ## Graph
 
@@ -21,8 +21,6 @@ Queries are handled by `cypher_read.py`. Using `checkQuery`, you can pass Cypher
 Updates to the ActivityPub instance are then handled by `check_db.py`: `checkForUpdates` is called, and all marked nodes/edges are updated in the instance.
 
 Some example queries have been provided (```testcases.py```). Add further activities and actors using queries on the graph or requests to the application.
-
-If you've completed these steps, you can try [the demo](demo_examples.md).
 
 ### Supported queries
 
