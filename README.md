@@ -12,6 +12,8 @@ Updates to the ActivityPub instance are then handled by `check_db.py`: `checkFor
 
 Some example queries have been provided (```testcases.py```). Add further activities and actors using queries on the graph or requests to the application.
 
+If you've completed these steps, you can try [the demo](demo_examples.md).
+
 ### Supported queries
 
 `CREATE`, `SET`, `DELETE` and `DELETE DETACH` are implemented. Queries that contain these keywords are modified, so that affected nodes and edges can also be synced to the ActivityPub instance. You can of course also use the standard query terms like `MATCH` and `RETURN`, these are unaffected during modification.
