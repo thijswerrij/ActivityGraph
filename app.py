@@ -89,9 +89,21 @@ def sendToOutbox(self, user=None):
     elif request.method == "POST":
         data = request.get_json(force=True)#.to_dict()
         
-        message = createActivity(data, box='outbox')
-        
-        self.database.activities.insert_one(message.to_dict())
+        recipients = getRecipients(self,data)
+        if recipients:
+            for actor in getRecipients(self,data):
+                message = createActivity(data, box='inbox', id_preset=actor['id'])
+                
+                self.database.activities.insert_one(message.to_dict())
+                
+            # only call this if you want to automatically update
+            error = updateDB()
+            if error:
+                return error
+        else:
+            message = createActivity(data, box='outbox')
+            self.database.activities.insert_one(message.to_dict())
+            
         return self.render_json(
             setIdToString(message.to_dict())
         )
@@ -111,13 +123,21 @@ def route_user_inbox(self, nickname):
             if federated:
                 data = request.get_json(force=True)#.to_dict()
                 
-                for actor in getRecipients(self,data):
-                    message = createActivity(data, box='inbox', id_preset=actor['id'])
-                    
-                    self.database.activities.insert_one(message.to_dict())
-                    
+                recipients = getRecipients(self,data)
+                
+                if recipients:
+                    for actor in getRecipients(self,data):
+                        message = createActivity(data, box='inbox', id_preset=actor['id'])
+                        
+                        self.database.activities.insert_one(message.to_dict())
+                        
                     # only call this if you want to automatically update
-                    updateDB()
+                    error = updateDB()
+                    if error:
+                        return error
+                else:
+                    return "No valid recipients specified"
+                
                 return self.render_json(
                     setIdToString(message.to_dict())
                 )
@@ -144,6 +164,8 @@ def getRecipients(self, obj):
         if actor:
             actors.append(actor)
     
+    if len(actors) == 0:
+        return None
     return actors
 
 def createActivity(data, box='outbox', id_preset=''):

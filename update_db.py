@@ -58,34 +58,42 @@ def updateDB():
                 objId = obj["id"]
                 
                 original_activity = db.activities.find_one({"remote_id": objId})
-                to_be_updated = retrieveObject(original_activity)
-                
-                if (to_be_updated):
-                    removeAttributes(updates, static_attributes)
-                    to_be_updated.update(updates)
-                    db.activities.find_one_and_update({"remote_id": objId}, {"$set": {"activity.object": to_be_updated}})
+                if original_activity:
+                    to_be_updated = retrieveObject(original_activity)
                     
-                if "object_id" in original_activity:
-                    removeAttributes(obj, exclude_from_nodes)
-                    node = updateNode(obj, original_activity["object_id"])
-                
-                db.activities.delete_one({"remote_id": a['remote_id']})
+                    if (to_be_updated):
+                        removeAttributes(updates, static_attributes)
+                        to_be_updated.update(updates)
+                        db.activities.find_one_and_update({"remote_id": objId}, {"$set": {"activity.object": to_be_updated}})
+                        
+                    if "object_id" in original_activity:
+                        removeAttributes(obj, exclude_from_nodes)
+                        node = updateNode(obj, original_activity["object_id"])
+                    
+                    db.activities.delete_one({"remote_id": a['remote_id']})
+                else:
+                    db.activities.delete_one({"remote_id": a['remote_id']})
+                    return "To be updated activity not found"
                 
             elif 'Delete' in aType:
                 original_activity = db.activities.find_one({"remote_id": obj["id"]})
                 
-                db.activities.delete_one({"remote_id": obj['id']})
-                db.activities.delete_one({"remote_id": a['remote_id']})
-                
-                tombstone = manager.Create(**{
-                    'type': ['Tombstone'],
-                    'id': obj['id']
-                })
-                
-                db.activities.insert_one(tombstone.to_dict())
-                
-                if "object_id" in original_activity:
-                    node = deleteNode(original_activity["object_id"])
+                if original_activity:
+                    db.activities.delete_one({"remote_id": obj['id']})
+                    db.activities.delete_one({"remote_id": a['remote_id']})
+                    
+                    tombstone = manager.Create(**{
+                        'type': ['Tombstone'],
+                        'id': obj['id']
+                    })
+                    
+                    db.activities.insert_one(tombstone.to_dict())
+                    
+                    if "object_id" in original_activity:
+                        node = deleteNode(original_activity["object_id"])
+                else:
+                    db.activities.delete_one({"remote_id": a['remote_id']})
+                    return "To be deleted activity not found"
         else:
             # Create/Update/Delete activity should contain object
             db.activities.find_one_and_update({"remote_id": a["remote_id"]}, {"$set": {"db_status": "invalid"}})

@@ -69,7 +69,7 @@ If you want to POST something yourself, see the following example:
 
 ```
 
-When you post this request to the server (in my case I posted it to Alice's inbox, `http://localhost:5000/user/alice/inbox`), it will get converted to an activity which encloses a "Post" object with message "See you soon!". This message is attributed to Bob, and as Alice is the only recipient, it gets forwarded to her. If you visit `http://localhost:5000/user/alice/inbox`, you will now see the message in her inbox. As this message has both links to Alice and Bob, we should see this represented in our graph now:
+When you post this request to the server (in my case I posted it to Bob's outbox, `http://localhost:5000/user/bob/outbox`), it will get converted to an activity which encloses a "Post" object with message "See you soon!". This message is attributed to Bob, and as Alice is the only recipient, it gets forwarded to her inbox. If you visit `http://localhost:5000/user/alice/inbox`, you will now see the message in her inbox. As this message has both links to Alice and Bob, we should see this represented in our graph now:
 
 ![Graph](img/graph2.png)
 
